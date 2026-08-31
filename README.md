@@ -64,7 +64,7 @@ first pass:  4 vectors, 1 api call(s) for 3 text(s)
 second pass: 4 vectors, 1 api call(s) total
 identical:   true
 after restart: dim 8, stats {"memoryHits":0,"diskHits":1,"misses":0,...,"hitRate":1}
-hit rate 50.0%  (memory 4, disk 0, miss 4, computed 3)  3 entries / 96 bytes in memory
+hit rate 50.0%  (memory 3, disk 0, miss 3, computed 3)  3 entries / 96 bytes in memory
 ```
 
 Four documents, one duplicate, one API call for three texts; the second pass
