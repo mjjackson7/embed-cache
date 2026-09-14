@@ -150,6 +150,47 @@ test('persists to disk and survives a fresh cache instance over the same directo
   assert.equal(second.stats().diskHits, 1);
 });
 
+test('memory eviction under maxBytes still serves evicted entries from disk', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'embed-cache-test-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+
+  // Room for exactly two 4-float (16 byte) vectors in memory.
+  const cache = new EmbedCache({ dir, maxBytes: 32 });
+  await cache.set('model-a', 'one', [1, 2, 3, 4]);
+  await cache.set('model-a', 'two', [5, 6, 7, 8]);
+  await cache.set('model-a', 'three', [9, 10, 11, 12]); // evicts 'one' from memory, not from disk
+
+  assert.equal(cache.stats().entries, 2);
+
+  const one = await cache.get('model-a', 'one');
+  assert.deepEqual(one, Float32Array.from([1, 2, 3, 4]));
+  assert.equal(cache.stats().diskHits, 1);
+
+  // The disk read promotes 'one' back into memory, which evicts 'two' (now
+  // the least recently used) to stay under the byte budget.
+  assert.equal(cache.stats().entries, 2);
+  const two = await cache.get('model-a', 'two');
+  assert.deepEqual(two, Float32Array.from([5, 6, 7, 8]));
+  assert.equal(cache.stats().diskHits, 2);
+});
+
+test('memory eviction under maxEntries still serves evicted entries from disk', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'embed-cache-test-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+
+  const cache = new EmbedCache({ dir, maxEntries: 1 });
+  await cache.set('model-a', 'one', [1]);
+  await cache.set('model-a', 'two', [2]); // evicts 'one' from memory, not from disk
+
+  assert.equal(cache.stats().entries, 1);
+  assert.deepEqual(await cache.get('model-a', 'one'), Float32Array.from([1]));
+  assert.equal(cache.stats().diskHits, 1);
+  // 'one' is back in memory now, which pushed 'two' out in its place.
+  assert.equal(cache.stats().entries, 1);
+  assert.deepEqual(await cache.get('model-a', 'two'), Float32Array.from([2]));
+  assert.equal(cache.stats().diskHits, 2);
+});
+
 test('clear removes both the memory and disk tiers', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'embed-cache-test-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
